@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vinyl Pull</title>
+<style>
+  /* ------------------------------------------------------------------
+     Vinyl pull-out — pure CSS (no JS needed for the motion).
+     Each record slides out of the top-left corner, cascading one after
+     another, with grey "echo" copies trailing behind it like the ghosted
+     type in the book-fair poster.
+     ------------------------------------------------------------------ */
+  :root {
+    --paper: #f4f3ef;
+    --ink: #111;
+    --ghost: #bdbdbd;
+    --edge: #2a2a2a;
+    --skew: -22deg;          /* the isometric slant of every sleeve */
+    --squash: .88;           /* horizontal foreshortening */
+    --dur: 1.5s;             /* travel time of one record */
+    --gap: .32s;             /* stagger between records */
+    --ease: cubic-bezier(.16, .84, .24, 1);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    background: #1b1b1b;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    padding: 24px 16px;
+  }
+
+  /* Poster frame — everything inside is sized in cqw so it scales */
+  .stage {
+    position: relative;
+    width: min(100%, 720px);
+    aspect-ratio: 4 / 5;
+    background: var(--paper);
+    overflow: hidden;
+    container-type: inline-size;
+  }
+
+  /* ---------- big italic type, set on the same slant ---------- */
+  .type {
+    position: absolute;
+    left: 5cqw;
+    bottom: 4cqw;
+    margin: 0;
+    font-weight: 700;
+    font-style: italic;
+    font-size: 6.4cqw;
+    line-height: .92;
+    letter-spacing: -.03em;
+    color: var(--ink);
+    text-align: left;
+    transform: skewY(var(--skew)) scaleX(var(--squash));
+    transform-origin: left bottom;
+    z-index: 20;
+    pointer-events: none;
+  }
+  .type span { display: block; }
+
+  /* ---------- one record = wrapper positioned on the cascade ---------- */
+  .rec {
+    --w: 46cqw;
+    --x: calc(16cqw + var(--i) * 7cqw);
+    --y: calc(28cqw + var(--i) * 8.5cqw);
+    position: absolute;
+    left: var(--x);
+    top: var(--y);
+    width: var(--w);
+    aspect-ratio: 1;
+    z-index: calc(10 + var(--i));
+    /* where it starts: fully tucked past the top-left corner */
+    --from-x: calc(-1 * (var(--x) + var(--w) * 1.25));
+    --from-y: calc(-1 * (var(--y) + var(--w) * 1.05));
+    --delay: calc(var(--i) * var(--gap));
+    outline: none;
+    cursor: pointer;
+  }
+
+  /* The flat "isometric" plane every layer of a record lives on */
+  .plane {
+    position: absolute;
+    inset: 0;
+    transform: skewY(var(--skew)) scaleX(var(--squash));
+    transform-origin: left top;
+  }
+
+  /* Each layer animates the standalone `translate` property so the
+     skew transform above stays untouched. */
+  .layer {
+    position: absolute;
+    inset: 0;
+    animation: pull var(--dur) var(--ease) both;
+    animation-delay: var(--delay);
+  }
+
+  @keyframes pull {
+    0%   { translate: var(--from-x) var(--from-y); }
+    /* first it slides sideways out of the "shelf"… */
+    38%  { translate: calc(var(--from-x) * .35) calc(var(--from-y) * .62); }
+    /* …then glides down into its slot */
+    100% { translate: 0 0; }
+  }
+
+  /* ---------- the sleeve ---------- */
+  .sleeve {
+    position: absolute;
+    inset: 0;
+    background: var(--img) center / cover, #ccc;
+    /* stacked hard shadows = cardboard thickness on the slant */
+    box-shadow:
+      -1px 1px 0 var(--edge), -2px 2px 0 var(--edge), -3px 3px 0 var(--edge),
+      -4px 4px 0 var(--edge), -5px 5px 0 var(--edge),
+      -18px 26px 40px rgba(0,0,0,.28);
+    transform-origin: right bottom;   /* pivot like a book tipped off the shelf */
+    transition: translate .5s var(--ease), rotate .5s var(--ease), filter .4s;
+  }
+  /* subtle sheen + ring wear */
+  .sleeve::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 50% 50%, transparent 43%, rgba(255,255,255,.07) 44%, transparent 46%),
+      linear-gradient(115deg, rgba(255,255,255,.22), transparent 35%, transparent 70%, rgba(0,0,0,.12));
+    mix-blend-mode: soft-light;
+  }
+
+  /* ---------- echo copies (the grey ghosts) ---------- */
+  .echo {
+    background: var(--img) center / cover;
+    filter: grayscale(1) contrast(.6) brightness(1.35);
+    mix-blend-mode: multiply;
+    animation-name: pull, echo;
+    animation-duration: var(--dur), calc(var(--dur) + .6s);
+    animation-timing-function: var(--ease), linear;
+    animation-fill-mode: both, both;
+  }
+  .echo.e1 { --lag: .07s; --peak: .55; }
+  .echo.e2 { --lag: .14s; --peak: .38; }
+  .echo.e3 { --lag: .22s; --peak: .24; }
+  .echo { animation-delay: calc(var(--delay) + var(--lag)), calc(var(--delay) + var(--lag)); }
+
+  @keyframes echo {
+    0%   { opacity: 0; }
+    12%  { opacity: var(--peak); }
+    60%  { opacity: var(--peak); }
+    100% { opacity: 0; }
+  }
+
+  /* ---------- interaction: hover / focus / open ---------- */
+  .rec:hover .sleeve,
+  .rec:focus-visible .sleeve { translate: -10cqw -1cqw; rotate: -7deg; }
+
+
+  .rec.open { z-index: 30; }
+  .rec.open .sleeve { translate: -10cqw -1cqw; rotate: -7deg; }
+
+  /* ---------- album name label (one shared, above every cover) ---------- */
+  .cap { display: none; }             /* source text only, read by the script */
+
+  .label {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 50;
+    margin: 0;
+    padding: .9cqw 1.4cqw 1cqw;
+    background: #fff;
+    color: var(--ink);
+    font-size: 2.2cqw;
+    font-weight: 700;
+    font-style: italic;
+    line-height: 1.05;
+    white-space: nowrap;
+    box-shadow: 0 .6cqw 1.6cqw rgba(0,0,0,.18);
+    transform: skewY(var(--skew)) scaleX(var(--squash));
+    transform-origin: left top;
+    opacity: 0;
+    translate: 0 1cqw;
+    transition: opacity .25s, translate .35s var(--ease);
+    pointer-events: none;
+  }
+  .label small { display: block; font-weight: 400; color: #777; }
+  .label.on { opacity: 1; translate: 0 0; }
+
+  /* ---------- replay ---------- */
+  .replay {
+    position: absolute;
+    top: 3cqw;
+    right: 3cqw;
+    z-index: 40;
+    font: italic 700 2cqw/1 "Helvetica Neue", Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: none;
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    padding: 1cqw 2cqw;
+    cursor: pointer;
+  }
+  .replay:hover { background: var(--ink); color: var(--paper); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .layer, .echo { animation: none !important; }
+    .echo { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<main class="stage" id="stage">
+  <button class="replay" type="button" onclick="replay()">Replay ↺</button>
+
+  <!-- --i drives position, stack order and delay -->
+  <div class="rec" tabindex="0" style="--i:0; --img:url(https://f4.bcbits.com/img/a3128194240_16.jpg)">
+    <div class="plane">
+      <div class="layer echo e3"></div>
+      <div class="layer echo e2"></div>
+      <div class="layer echo e1"></div>
+      <div class="layer"><div class="sleeve"></div></div>
+    </div>
+    <p class="cap">The Animal (Migrated)<small>Blue Lake</small></p>
+  </div>
+
+  <div class="rec" tabindex="0" style="--i:1; --img:url(https://f4.bcbits.com/img/a2805920985_16.jpg)">
+    <div class="plane">
+      <div class="layer echo e3"></div>
+      <div class="layer echo e2"></div>
+      <div class="layer echo e1"></div>
+      <div class="layer"><div class="sleeve"></div></div>
+    </div>
+    <p class="cap">Routine<small>Jason Dungan / Johan Carøe</small></p>
+  </div>
+
+  <div class="rec" tabindex="0" style="--i:2; --img:url(https://f4.bcbits.com/img/a2132569236_16.jpg)">
+    <div class="plane">
+      <div class="layer echo e3"></div>
+      <div class="layer echo e2"></div>
+      <div class="layer echo e1"></div>
+      <div class="layer"><div class="sleeve"></div></div>
+    </div>
+    <p class="cap">Terra Incognita<small>Akusmi</small></p>
+  </div>
+
+  <div class="rec" tabindex="0" style="--i:3; --img:url(https://f4.bcbits.com/img/a0329671994_16.jpg)">
+    <div class="plane">
+      <div class="layer echo e3"></div>
+      <div class="layer echo e2"></div>
+      <div class="layer echo e1"></div>
+      <div class="layer"><div class="sleeve"></div></div>
+    </div>
+    <p class="cap">Dream Temperature<small>Anenon</small></p>
+  </div>
+
+  <div class="rec" tabindex="0" style="--i:4; --img:url(https://f4.bcbits.com/img/a3725104165_16.jpg)">
+    <div class="plane">
+      <div class="layer echo e3"></div>
+      <div class="layer echo e2"></div>
+      <div class="layer echo e1"></div>
+      <div class="layer"><div class="sleeve"></div></div>
+    </div>
+    <p class="cap">Club Subterranea<small>Akusmi</small></p>
+  </div>
+
+  <p class="label" id="label" aria-live="polite"></p>
+
+  <h1 class="type">
+    <span>Tonal</span>
+    <span>Union</span>
+  </h1>
+</main>
+
+<script>
+  // Optional sugar — the effect itself is CSS only.
+  // Click a record to keep it pulled out; Replay restarts the cascade.
+  const stage = document.getElementById('stage');
+  const label = document.getElementById('label');
+  const recs = [...document.querySelectorAll('.rec')];
+
+  // Park the label just under the sleeve's bottom-left corner, on the top layer.
+  function showLabel(rec) {
+    label.innerHTML = rec.querySelector('.cap').innerHTML;
+    label.style.left = rec.offsetLeft + 'px';
+    label.style.top = (rec.offsetTop + rec.offsetHeight + stage.clientWidth * .012) + 'px';
+    label.classList.add('on');
+  }
+  function hideLabel() {
+    const open = stage.querySelector('.rec.open');
+    open ? showLabel(open) : label.classList.remove('on');
+  }
+
+  recs.forEach(rec => {
+    const toggle = () => {
+      const wasOpen = rec.classList.contains('open');
+      recs.forEach(r => r.classList.remove('open'));
+      if (!wasOpen) rec.classList.add('open');
+      hideLabel();
+    };
+    rec.addEventListener('click', toggle);
+    rec.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+    rec.addEventListener('mouseenter', () => showLabel(rec));
+    rec.addEventListener('focus', () => showLabel(rec));
+    rec.addEventListener('mouseleave', hideLabel);
+    rec.addEventListener('blur', hideLabel);
+  });
+
+  function replay() {
+    recs.forEach(r => r.classList.remove('open'));
+    label.classList.remove('on');
+    stage.getAnimations({ subtree: true }).forEach(a => { a.cancel(); a.play(); });
+  }
+</script>
+</body>
+</html>
